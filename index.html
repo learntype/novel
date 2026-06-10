@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Typing Tutor</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      min-height: 100%;
+      background: #0f0f1a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Courier New', Courier, monospace;
+    }
+    #app {
+      width: 900px;
+      background: #1a1a2e;
+      border-radius: 10px;
+      overflow: hidden;
+      outline: none;
+      user-select: none;
+    }
+
+    /* ── Top Bar ── */
+    #topbar {
+      background: #111122;
+      padding: 9px 18px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      border-bottom: 1px solid #2a2a3e;
+      flex-wrap: wrap;
+    }
+    .wpm-badge { display: flex; align-items: baseline; gap: 3px; }
+    .wpm-num   { font-size: 20px; font-weight: 700; color: #e0e0e0; font-family: sans-serif; }
+    .wpm-label { font-size: 9px; color: #888; font-family: sans-serif; vertical-align: super; }
+    .wpm-status{ font-size: 11px; color: #4ade80; font-family: sans-serif; }
+    .sep       { color: #333; margin: 0 2px; }
+    #start-pill {
+      background: #2a2a3e;
+      border: 1px solid #3a3a5e;
+      color: #ccc;
+      padding: 5px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      cursor: pointer;
+      font-family: sans-serif;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background .15s;
+    }
+    #start-pill:hover { background: #3a3a5e; }
+    #kb-toggle {
+      background: #2a2a3e;
+      border: 1px solid #3a3a5e;
+      color: #ccc;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: sans-serif;
+      transition: background .15s;
+    }
+    #kb-toggle:hover { background: #3a3a5e; }
+    #kb-toggle.kb-off { opacity: 0.45; }
+    #kb-area { transition: max-height 0.2s ease, padding 0.2s ease; overflow: hidden; }
+    #kb-area.hidden { max-height: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important; }
+
+    /* ── Upload Bar ── */
+    #upload-bar {
+      background: #0e0e1c;
+      padding: 8px 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid #2a2a3e;
+      flex-wrap: wrap;
+    }
+    #upload-bar label {
+      font-family: sans-serif;
+      font-size: 11px;
+      color: #888;
+      white-space: nowrap;
+    }
+    #file-input { display: none; }
+    #upload-btn {
+      background: #1e1e3a;
+      border: 1px dashed #3a3a6e;
+      color: #7a8aaa;
+      padding: 5px 14px;
+      border-radius: 6px;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: sans-serif;
+      transition: background .15s, border-color .15s;
+      display: flex; align-items: center; gap: 6px;
+    }
+    #upload-btn:hover { background: #252545; border-color: #5DCAA5; color: #5DCAA5; }
+    #file-info {
+      font-family: sans-serif; font-size: 11px;
+      color: #5DCAA5; flex: 1; min-width: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    #file-err {
+      font-family: sans-serif; font-size: 11px;
+      color: #ef4444;
+    }
+    /* chunk nav */
+    #chunk-nav {
+      margin-left: auto;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      font-family: sans-serif; font-size: 11px; color: #888;
+    }
+    #chunk-nav.visible { display: flex; }
+    .chunk-btn {
+      background: #1e1e3a; border: 1px solid #3a3a5e;
+      color: #ccc; padding: 3px 11px; border-radius: 5px;
+      font-size: 11px; cursor: pointer; font-family: sans-serif;
+      transition: background .12s;
+    }
+    .chunk-btn:hover { background: #2a2a4e; }
+    .chunk-btn:disabled { opacity: .35; cursor: default; }
+
+    /* ── Progress Bar ── */
+    #progress  { height: 3px; background: #2a2a3e; }
+    #prog-fill { height: 3px; background: #5DCAA5; width: 0; transition: width .15s; }
+
+    /* ── Text Area ── */
+    #text-area {
+      padding: 32px 40px 28px;
+      position: relative;
+    }
+    #text-display {
+      font-size: 28px;
+      line-height: 2;
+      letter-spacing: 0.04em;
+      display: block;
+      width: 100%;
+      word-break: break-word;
+      white-space: normal;
+      text-align: left;
+    }
+    .word { display: inline-block; white-space: nowrap; }
+    .word-space { display: inline; }
+    .c-pending { color: #4a5568; }
+    .c-done    { color: #5DCAA5; }
+    .c-err     { color: #ef4444; }
+    .c-cursor  {
+      color: #e2e8f0;
+      position: relative;
+    }
+    .c-cursor::before {
+      content: '';
+      position: absolute;
+      left: -1px;
+      top: 0.1em;
+      bottom: 0.1em;
+      width: 2px;
+      background: #5DCAA5;
+      animation: blink 1s step-end infinite;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
+    }
+
+    /* ── Overlays ── */
+    .overlay-base {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 12px;
+    }
+    #overlay { background: rgba(10,10,20,.55); z-index: 5; }
+    #overlay-btn {
+      background: #5DCAA5; color: #0a2a20; border: none;
+      padding: 11px 30px; border-radius: 6px;
+      font-size: 15px; font-weight: 700; cursor: pointer;
+      font-family: sans-serif; letter-spacing: .06em;
+      transition: background .15s;
+    }
+    #overlay-btn:hover { background: #4ab891; }
+    #done-wrap { background: rgba(10,10,20,.88); z-index: 6; display: none; }
+    #done-wrap.show { display: flex; }
+    #done-wrap h2 { color: #5DCAA5; font-family: sans-serif; font-size: 22px; }
+    #done-wrap p  { color: #aaa; font-family: sans-serif; font-size: 14px; }
+    .done-actions { display: flex; gap: 10px; margin-top: 4px; }
+    .done-btn {
+      border: none; padding: 9px 22px; border-radius: 5px;
+      font-size: 13px; font-weight: 700; cursor: pointer;
+      font-family: sans-serif; transition: background .15s;
+    }
+    #retry-btn  { background: #5DCAA5; color: #0a2a20; }
+    #retry-btn:hover { background: #4ab891; }
+    #next-chunk-done {
+      background: #2a3a5e; color: #90c0ff;
+      border: 1px solid #3a5a8e;
+      display: none;
+    }
+    #next-chunk-done.visible { display: block; }
+    #next-chunk-done:hover { background: #3a4a6e; }
+
+    /* ── PDF loading overlay ── */
+    #pdf-loading {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(10,10,20,.75);
+      z-index: 99;
+      align-items: center; justify-content: center;
+      flex-direction: column; gap: 14px;
+    }
+    #pdf-loading.show { display: flex; }
+    #pdf-loading p { color: #5DCAA5; font-family: sans-serif; font-size: 14px; }
+    .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid #2a2a4e;
+      border-top-color: #5DCAA5;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Keyboard ── */
+    #kb-area {
+      background: #111122;
+      padding: 14px 16px 20px;
+      border-top: 1px solid #2a2a3e;
+    }
+    .kb-row { display: flex; justify-content: center; gap: 4px; margin-bottom: 4px; }
+    .key {
+      min-width: 34px; height: 36px;
+      background: #1e1e2e; border: 1px solid #2e2e4e; border-radius: 5px;
+      color: #777; font-size: 11px; font-family: sans-serif;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; cursor: default;
+      transition: background .08s, color .08s, border-color .08s;
+    }
+    .key .top { font-size: 8px; color: #444; line-height: 1; }
+    .key.wide    { min-width: 58px; }
+    .key.wider   { min-width: 76px; }
+    .key.space   { min-width: 210px; }
+    .key.shift-l, .key.shift-r { min-width: 76px; }
+    .key.hl { background: #0e3a30; border-color: #5DCAA5; color: #5DCAA5; }
+    .key.hl .top { color: #2a8a70; }
+    .key.pressed { background: #5DCAA5; color: #0a2a20; border-color: #5DCAA5; }
+  </style>
+</head>
+<body>
+<div id="app" tabindex="0">
+
+  <!-- Top Bar -->
+  <div id="topbar">
+    <div class="wpm-badge">
+      <span class="wpm-label">wpm</span>
+      <span class="wpm-num" id="wpm1">0</span>
+      <span class="sep">|</span>
+      <span class="wpm-status" id="acc-label">Good</span>
+    </div>
+    <div class="wpm-badge">
+      <span class="wpm-num" id="wpm2">0</span>
+      <span class="wpm-label">wpm</span>
+    </div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:14px;font-family:sans-serif;font-size:12px;color:#666;">
+      <span>ACC: <span id="acc-pct" style="color:#e2e8f0;">100%</span></span>
+      <span>TIME: <span id="time-el" style="color:#e2e8f0;">0:00</span></span>
+    </div>
+    <button id="start-pill">
+      <span style="font-size:13px;color:#aaa;">&#9646;&#9646;</span> Start Typing
+    </button>
+    <button id="kb-toggle" title="Toggle keyboard">
+      <span id="kb-toggle-icon">⌨</span>
+    </button>
+  </div>
+
+  <!-- Upload Bar -->
+  <div id="upload-bar">
+    <label>Upload teks:</label>
+    <button id="upload-btn" onclick="document.getElementById('file-input').click()">
+      &#128196; Pilih file .txt / .pdf
+    </button>
+    <input type="file" id="file-input" accept=".txt,.pdf" />
+    <span id="file-info"></span>
+    <span id="file-err"></span>
+    <div id="chunk-nav">
+      <button class="chunk-btn" id="prev-btn">&#8592; Prev</button>
+      <span id="chunk-label">Bagian 1 / 1</span>
+      <button class="chunk-btn" id="next-btn">Next &#8594;</button>
+    </div>
+  </div>
+
+  <div id="progress"><div id="prog-fill"></div></div>
+
+  <!-- Text Area -->
+  <div id="text-area">
+    <div id="text-display"></div>
+    <div class="overlay-base" id="overlay">
+      <button id="overlay-btn">&#9654; Start Typing</button>
+    </div>
+    <div class="overlay-base" id="done-wrap">
+      <h2 id="done-h">Bagian selesai!</h2>
+      <p id="done-p"></p>
+      <div class="done-actions">
+        <button class="done-btn" id="retry-btn">&#8635; Ulangi</button>
+        <button class="done-btn" id="next-chunk-done">Lanjut &#8594;</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="kb-area"><div id="keyboard"></div></div>
+</div>
+
+<!-- PDF loading overlay (outside #app so z-index works) -->
+<div id="pdf-loading">
+  <div class="spinner"></div>
+  <p>Memproses PDF…</p>
+</div>
+
+<!-- pdf.js CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+'use strict';
+
+/* ══════════════════════════════════════════════════
+   SECURITY CONSTANTS
+   ══════════════════════════════════════════════════ */
+const MAX_FILE_BYTES  = 10 * 1024 * 1024;   // 10 MB
+const MAX_TEXT_CHARS  = 500_000;             // 500k chars dari file
+const CHUNK_SIZE      = 300;                 // karakter per sesi mengetik
+const ALLOWED_TYPES   = ['text/plain', 'application/pdf'];
+const ALLOWED_EXTS    = ['.txt', '.pdf'];
+
+/* ══════════════════════════════════════════════════
+   DEFAULT TEXT
+   ══════════════════════════════════════════════════ */
+const DEFAULT_TEXT =
+  "hello there, how are you doing? are you ready to start learning now?";
+
+/* ══════════════════════════════════════════════════
+   KEYBOARD LAYOUT
+   ══════════════════════════════════════════════════ */
+const KB_ROWS = [
+  [['`','`'],['1','1'],['2','2'],['3','3'],['4','4'],['5','5'],
+   ['6','6'],['7','7'],['8','8'],['9','9'],['0','0'],['-','-'],['=','='],
+   ['Back','Backspace','wider']],
+  [['Tab','Tab','wide'],['Q','q'],['W','w'],['E','e'],['R','r'],['T','t'],
+   ['Y','y'],['U','u'],['I','i'],['O','o'],['P','p'],
+   ['[','['],['}',' ]'],['\\','\\']],
+  [['Caps','CapsLock','wide'],['A','a'],['S','s'],['D','d'],['F','f'],['G','g'],
+   ['H','h'],['J','j'],['K','k'],['L','l'],
+   [';',';'],["'","'"],['Enter','Enter','wider']],
+  [['Shift','Shift','shift-l'],['Z','z'],['X','x'],['C','c'],['V','v'],['B','b'],
+   ['N','n'],['M','m'],[',',','],['.','.'],['/','/'],['Shift','Shift','shift-r']],
+  [['Ctrl','Control','wide'],['Alt','Alt','wide'],['','  ','space'],
+   ['Alt','Alt','wide'],['Ctrl','Control','wide']]
+];
+
+/* ══════════════════════════════════════════════════
+   CUSTOM AUDIO ENGINE (embedded WAV)
+   ══════════════════════════════════════════════════ */
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let actx = null;
+let benarBuf = null, salahBuf = null;
+
+const BENAR_SND = 'data:audio/mpeg;base64,SUQzBAAAAAAATFRYWFgAAAAfAAADVFhYWABpc280aXNvbW9iczFpc28yYXZjMW1wNDEAVFNTRQAAAA8AAANMYXZmNjAuMTYuMTAwAAAAAAAAAAAAAAD/+1QAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABJbmZvAAAADwAAABYAACHAABEREREcHBwcHCcnJyczMzMzMz4+Pj5JSUlJSVVVVVVgYGBgYGxsbGx3d3d3d4KCgoKOjo6OjpmZmZmZpKSkpLCwsLCwu7u7u8fHx8fH0tLS0t3d3d3d6enp6fT09PT0/////wAAAABMYXZjNjAuMzEAAAAAAAAAAAAAAAAkAn4AAAAAAAAhwIUEy7T/+5RkAA/wAABpAAAACAAADSAAAAEAAAGkAAAAIAAANIAAAARMQU1FMy4xMDBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/+5RkUY/wAABpAAAACAAADSAAAAEAAAGkAAAAIAAANIAAAARVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVV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VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/+5RkUY/wAAAAAAAACAAAAAAAAAEAAAGkAAAAIAAANIAAAARVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=';
+const SALAH_SND = 'data:audio/mpeg;base64,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A4AACAKAEABsAAEANAIAB4AAIAaAQADwAASqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkxBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqr/+5RkUY/wAABpAAAACAAADSAAAAEAAAGkAAAAIAAANIAAAASqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkxBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqr/+5RkUY/wAABpAAAACAAADSAAAAEAAAGkAAAAIAAANIAAAASqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqo=';
+
+async function loadAudioBuf(dataUrl) {
+  const resp = await fetch(dataUrl);
+  const arrBuf = await resp.arrayBuffer();
+  return await actx.decodeAudioData(arrBuf);
+}
+
+function ensureAudio() {
+  if (!actx) {
+    actx = new AudioCtx();
+    // preload buffers async (fire and forget — ready quickly)
+    loadAudioBuf(BENAR_SND).then(b => { benarBuf = b; }).catch(()=>{});
+    loadAudioBuf(SALAH_SND).then(b => { salahBuf = b; }).catch(()=>{});
+  }
+  if (actx.state === 'suspended') actx.resume();
+}
+
+function playClick(isError) {
+  if (!actx) return;
+  const buf = isError ? salahBuf : benarBuf;
+  if (!buf) return;
+  const src = actx.createBufferSource();
+  src.buffer = buf;
+  // slight pitch randomization for variety
+  src.playbackRate.value = 0.92 + Math.random() * 0.16;
+  const gain = actx.createGain();
+  gain.gain.value = isError ? 0.85 : 0.95;
+  src.connect(gain);
+  gain.connect(actx.destination);
+  src.start();
+}
+
+/* ══════════════════════════════════════════════════
+   TEXT MANAGEMENT & CHUNKS
+   ══════════════════════════════════════════════════ */
+let fullText    = DEFAULT_TEXT;   // seluruh teks yang diload
+let chunks      = [];             // array potongan teks
+let chunkIndex  = 0;              // chunk aktif
+
+/**
+ * sanitizeText: hapus karakter non-printable, normalkan whitespace,
+ * batasi panjang — semua dijalankan di sisi klien sebelum digunakan.
+ */
+function sanitizeText(raw) {
+  // Normalisasi karakter tipografi Unicode → ASCII ketik-able
+  let clean = raw
+    .replace(/\u2026/g, '...')          // … → ...
+    .replace(/[\u2018\u2019]/g, "'")   // ' ' → '
+    .replace(/[\u201C\u201D]/g, '"')   // " " → "
+    .replace(/\u2013/g, '-')            // – → -
+    .replace(/\u2014/g, '--')           // — → --
+    .replace(/\u00A0/g, ' ');           // non-breaking space → space
+  // Hanya izinkan karakter printable ASCII
+  // eslint-disable-next-line no-control-regex
+  clean = clean.replace(/[^\x09\x0A\x0D\x20-\x7E]/g, '');
+  // Normalisasi baris & spasi berulang
+  clean = clean.replace(/\r\n/g, ' ').replace(/[\r\n]+/g, ' ');
+  clean = clean.replace(/[ \t]+/g, ' ');           // spasi ganda → satu
+  clean = clean.trim();
+  // Batasi panjang
+  if (clean.length > MAX_TEXT_CHARS) {
+    clean = clean.slice(0, MAX_TEXT_CHARS);
+    // jangan potong di tengah kata
+    const lastSpace = clean.lastIndexOf(' ');
+    if (lastSpace > MAX_TEXT_CHARS * 0.9) clean = clean.slice(0, lastSpace);
+  }
+  return clean;
+}
+
+/**
+ * splitChunks: potong teks menjadi chunk CHUNK_SIZE karakter,
+ * selalu memotong di batas kata supaya tidak mid-word.
+ */
+function splitChunks(text) {
+  const result = [];
+  let pos = 0;
+  while (pos < text.length) {
+    let end = Math.min(pos + CHUNK_SIZE, text.length);
+    if (end < text.length) {
+      // mundur ke batas kata terdekat
+      let ws = end;
+      while (ws > pos && text[ws] !== ' ') ws--;
+      if (ws > pos) end = ws;
+    }
+    result.push(text.slice(pos, end).trim());
+    pos = end + 1;
+  }
+  return result.filter(c => c.length > 0);
+}
+
+function loadText(text) {
+  fullText   = sanitizeText(text);
+  chunks     = splitChunks(fullText);
+  chunkIndex = 0;
+  updateChunkNav();
+  loadChunk(0);
+}
+
+function loadChunk(idx) {
+  chunkIndex = idx;
+  updateChunkNav();
+  resetSession(chunks[idx] || DEFAULT_TEXT);
+}
+
+function updateChunkNav() {
+  const nav = document.getElementById('chunk-nav');
+  if (chunks.length > 1) {
+    nav.classList.add('visible');
+    document.getElementById('chunk-label').textContent =
+      'Bagian ' + (chunkIndex + 1) + ' / ' + chunks.length;
+    document.getElementById('prev-btn').disabled = chunkIndex === 0;
+    document.getElementById('next-btn').disabled = chunkIndex >= chunks.length - 1;
+    // tombol "Lanjut" di done overlay
+    const ncd = document.getElementById('next-chunk-done');
+    if (chunkIndex < chunks.length - 1) ncd.classList.add('visible');
+    else ncd.classList.remove('visible');
+  } else {
+    nav.classList.remove('visible');
+    document.getElementById('next-chunk-done').classList.remove('visible');
+  }
+}
+
+/* ══════════════════════════════════════════════════
+   FILE UPLOAD — SECURITY VALIDATIONS
+   ══════════════════════════════════════════════════ */
+function setFileErr(msg) {
+  document.getElementById('file-err').textContent  = msg;
+  document.getElementById('file-info').textContent = '';
+}
+function setFileInfo(msg) {
+  document.getElementById('file-info').textContent = msg;
+  document.getElementById('file-err').textContent  = '';
+}
+
+function validateFile(file) {
+  /* 1. Validasi ekstensi (tidak hanya MIME — mudah dipalsukan) */
+  const name = file.name.toLowerCase();
+  const ext  = name.slice(name.lastIndexOf('.'));
+  if (!ALLOWED_EXTS.includes(ext)) {
+    return 'Format tidak didukung. Hanya .txt dan .pdf.';
+  }
+  /* 2. Validasi MIME type */
+  if (file.type && !ALLOWED_TYPES.includes(file.type) && file.type !== '') {
+    // pdf.js kadang mendeteksi 'application/octet-stream' untuk PDF yang valid,
+    // jadi kita biarkan lolos jika ekstensi .pdf
+    if (!(ext === '.pdf')) {
+      return 'Tipe file tidak valid.';
+    }
+  }
+  /* 3. Validasi ukuran */
+  if (file.size > MAX_FILE_BYTES) {
+    return 'File terlalu besar (maks 10 MB).';
+  }
+  if (file.size === 0) {
+    return 'File kosong.';
+  }
+  return null; // OK
+}
+
+document.getElementById('file-input').addEventListener('change', async function () {
+  const file = this.files[0];
+  if (!file) return;
+  this.value = ''; // reset supaya file yang sama bisa diupload ulang
+
+  const err = validateFile(file);
+  if (err) { setFileErr(err); return; }
+
+  const name = file.name.toLowerCase();
+  const ext  = name.slice(name.lastIndexOf('.'));
+
+  if (ext === '.txt') {
+    await handleTxt(file);
+  } else if (ext === '.pdf') {
+    await handlePdf(file);
+  }
+});
+
+async function handleTxt(file) {
+  try {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const raw = e.target.result;
+      /* Cegah file yang sangat besar menyebabkan hang */
+      if (typeof raw !== 'string') { setFileErr('Gagal membaca file.'); return; }
+      loadText(raw);
+      saveUploadedText(raw, file.name); // simpan teks ke localStorage
+      setFileInfo('✓ ' + escapeHtmlAttr(file.name) +
+        '  (' + chunks.length + ' bagian)');
+    };
+    reader.onerror = () => setFileErr('Gagal membaca file teks.');
+    reader.readAsText(file, 'UTF-8');
+  } catch (e) {
+    setFileErr('Terjadi kesalahan saat membaca file.');
+  }
+}
+
+async function handlePdf(file) {
+  const loading = document.getElementById('pdf-loading');
+  loading.classList.add('show');
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+
+    /* Validasi magic bytes PDF: setiap PDF dimulai dengan %PDF */
+    const magic = new Uint8Array(arrayBuffer.slice(0, 5));
+    const header = String.fromCharCode(...magic);
+    if (!header.startsWith('%PDF')) {
+      loading.classList.remove('show');
+      setFileErr('File bukan PDF yang valid.');
+      return;
+    }
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    const pdf  = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const maxPages = Math.min(pdf.numPages, 200); // batasi 200 halaman
+    let allText = '';
+
+    for (let p = 1; p <= maxPages; p++) {
+      const page    = await pdf.getPage(p);
+      const content = await page.getTextContent();
+      /* Ambil teks saja — abaikan gambar/elemen lain */
+      const pageText = content.items
+        .filter(item => typeof item.str === 'string')
+        .map(item => item.str)
+        .join(' ');
+      allText += pageText + '\n';
+
+      /* Stop lebih awal jika sudah melebihi batas */
+      if (allText.length > MAX_TEXT_CHARS * 1.5) break;
+    }
+
+    if (!allText.trim()) {
+      setFileErr('PDF tidak mengandung teks yang bisa dibaca (mungkin scan gambar).');
+      loading.classList.remove('show');
+      return;
+    }
+
+    loadText(allText);
+    saveUploadedText(allText, file.name); // simpan teks PDF ke localStorage
+    setFileInfo('✓ ' + escapeHtmlAttr(file.name) +
+      '  (' + pdf.numPages + ' hal · ' + chunks.length + ' bagian)');
+
+  } catch (e) {
+    setFileErr('Gagal memproses PDF. Pastikan file tidak terpassword.');
+  } finally {
+    loading.classList.remove('show');
+  }
+}
+
+/* Sanitize nama file untuk ditampilkan (bukan dirender sebagai HTML) */
+function escapeHtmlAttr(str) {
+  return str.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ══════════════════════════════════════════════════
+   GAME STATE
+   ══════════════════════════════════════════════════ */
+let chars=[], spans=[], cursor=0, started=false, errors=0, typed=0, timer=null, secs=0;
+let currentLesson = DEFAULT_TEXT;
+
+/* ══════════════════════════════════════════════════
+   PERSISTENT STORAGE  (localStorage, 30 hari)
+   ══════════════════════════════════════════════════ */
+const STORE_KEY       = 'typingTutor_v1';
+const STORE_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000; // 30 hari
+
+/* Baca seluruh state dari localStorage */
+function storeLoad() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    // Cek expiry
+    if (!obj.savedAt || Date.now() - obj.savedAt > STORE_EXPIRY_MS) {
+      localStorage.removeItem(STORE_KEY);
+      return null;
+    }
+    return obj;
+  } catch (e) { return null; }
+}
+
+/* Simpan seluruh state ke localStorage */
+function storeSave(extra) {
+  try {
+    const obj = storeLoad() || {};
+    Object.assign(obj, extra, { savedAt: Date.now() });
+    localStorage.setItem(STORE_KEY, JSON.stringify(obj));
+  } catch (e) { /* quota exceeded — abaikan */ }
+}
+
+/* Hapus state dari localStorage */
+function storeClear() {
+  try { localStorage.removeItem(STORE_KEY); } catch(e) {}
+}
+
+/* Simpan progress chunk saat ini: chunkIndex + posisi karakter (cursor) */
+function saveProgress() {
+  const isUpload = (storeLoad() || {}).uploadedText != null;
+  storeSave({ chunkIndex, cursorPos: cursor });
+}
+
+/* Simpan teks yang di-upload beserta nama file dan chunk index */
+function saveUploadedText(text, fileName) {
+  storeSave({ uploadedText: text, uploadedFileName: fileName, chunkIndex: 0, cursorPos: 0 });
+}
+
+/* Tampilkan banner pemulihan sesi */
+function showResumeBanner(chunkIdx, curPos) {
+  // Hapus banner lama jika ada
+  const old = document.getElementById('resume-banner');
+  if (old) old.remove();
+
+  const banner = document.createElement('div');
+  banner.id = 'resume-banner';
+  banner.style.cssText = [
+    'background:#0e2a20', 'border-bottom:1px solid #2a5a40',
+    'padding:8px 18px', 'display:flex', 'align-items:center',
+    'gap:12px', 'font-family:sans-serif', 'font-size:11px', 'color:#5DCAA5',
+    'flex-wrap:wrap'
+  ].join(';');
+
+  const info = document.createElement('span');
+  info.textContent = '💾 Sesi tersimpan ditemukan — Bagian ' + (chunkIdx + 1) +
+    ', posisi ' + curPos + ' karakter.';
+
+  const btnResume = document.createElement('button');
+  btnResume.textContent = '▶ Lanjutkan';
+  btnResume.style.cssText = 'background:#1e4a30;border:1px solid #3a8a60;color:#5DCAA5;' +
+    'padding:4px 14px;border-radius:5px;font-size:11px;cursor:pointer;font-family:sans-serif;';
+  btnResume.onclick = () => {
+    banner.remove();
+    resumeSession(chunkIdx, curPos);
+  };
+
+  const btnDiscard = document.createElement('button');
+  btnDiscard.textContent = '✕ Mulai baru';
+  btnDiscard.style.cssText = 'background:transparent;border:1px solid #3a3a5e;color:#666;' +
+    'padding:4px 14px;border-radius:5px;font-size:11px;cursor:pointer;font-family:sans-serif;';
+  btnDiscard.onclick = () => {
+    storeClear();
+    banner.remove();
+  };
+
+  banner.appendChild(info);
+  banner.appendChild(btnResume);
+  banner.appendChild(btnDiscard);
+
+  // Sisipkan setelah upload-bar
+  const uploadBar = document.getElementById('upload-bar');
+  uploadBar.insertAdjacentElement('afterend', banner);
+}
+
+/* Pulihkan sesi: lompat ke chunk & set cursor ke posisi tersimpan */
+function resumeSession(chunkIdx, curPos) {
+  // Pastikan chunk valid
+  const targetChunk = chunks[chunkIdx];
+  if (!targetChunk) return;
+
+  chunkIndex = chunkIdx;
+  updateChunkNav();
+  currentLesson = targetChunk;
+
+  // Build text display lalu set cursor ke posisi tersimpan
+  buildTextAndSetCursor(curPos);
+  document.getElementById('app').focus();
+}
+
+/* Build teks lalu tempel cursor di posisi tertentu (tanpa reset ke 0) */
+function buildTextAndSetCursor(pos) {
+  cursor = 0; errors = 0; secs = 0; typed = 0; started = false;
+  clearInterval(timer); timer = null;
+  ['wpm1','wpm2'].forEach(id => document.getElementById(id).textContent = '0');
+  document.getElementById('acc-pct').textContent = '100%';
+  document.getElementById('time-el').textContent = '0:00';
+  document.getElementById('done-wrap').classList.remove('show');
+
+  chars = currentLesson.split('');
+  spans = [];
+  const d = document.getElementById('text-display');
+  d.innerHTML = '';
+
+  let i = 0;
+  while (i < chars.length) {
+    if (chars[i] === ' ') {
+      const sp = document.createElement('span');
+      sp.className = 'word-space c-pending';
+      sp.dataset.i = i;
+      sp.innerHTML = '&nbsp;';
+      spans[i] = sp;
+      d.appendChild(sp);
+      i++;
+    } else {
+      const wordWrap = document.createElement('span');
+      wordWrap.className = 'word';
+      while (i < chars.length && chars[i] !== ' ') {
+        const cs = document.createElement('span');
+        cs.className = 'c-pending';
+        cs.dataset.i = i;
+        cs.textContent = chars[i];
+        spans[i] = cs;
+        wordWrap.appendChild(cs);
+        i++;
+      }
+      d.appendChild(wordWrap);
+    }
+  }
+
+  // Terapkan posisi tersimpan
+  cursor = Math.min(pos, chars.length);
+  // Mark semua karakter sebelum cursor sebagai 'done'
+  for (let j = 0; j < cursor; j++) {
+    const el = spans[j];
+    if (el) el.className = (el.className.includes('word-space') ? 'word-space ' : '') + 'c-done';
+  }
+  updateCursor();
+
+  // Tampilkan overlay dengan teks "Lanjutkan"
+  const overlay = document.getElementById('overlay');
+  overlay.style.display = 'flex';
+  document.getElementById('overlay-btn').textContent = '▶ Lanjutkan';
+}
+
+
+/* ── Build keyboard ── */
+function buildKeyboard() {
+  const kb = document.getElementById('keyboard');
+  kb.innerHTML = '';
+  KB_ROWS.forEach(row => {
+    const rd = document.createElement('div');
+    rd.className = 'kb-row';
+    row.forEach(([lbl, key, extra]) => {
+      const k = document.createElement('div');
+      k.className = 'key ' + (extra || '');
+      k.dataset.key = key;
+      k.textContent = lbl;
+      rd.appendChild(k);
+    });
+    kb.appendChild(rd);
+  });
+}
+
+/* ── Build text display ── */
+function buildText() {
+  chars = currentLesson.split('');
+  spans = [];
+  const d = document.getElementById('text-display');
+  d.innerHTML = '';
+
+  let i = 0;
+  while (i < chars.length) {
+    if (chars[i] === ' ') {
+      const sp = document.createElement('span');
+      sp.className = 'word-space c-pending';
+      sp.dataset.i = i;
+      sp.innerHTML = '&nbsp;';
+      spans[i] = sp;
+      d.appendChild(sp);
+      i++;
+    } else {
+      const wordWrap = document.createElement('span');
+      wordWrap.className = 'word';
+      while (i < chars.length && chars[i] !== ' ') {
+        const cs = document.createElement('span');
+        cs.className = 'c-pending';
+        cs.dataset.i = i;
+        cs.textContent = chars[i];
+        spans[i] = cs;
+        wordWrap.appendChild(cs);
+        i++;
+      }
+      d.appendChild(wordWrap);
+    }
+  }
+  updateCursor();
+}
+
+/* ── Sync styles & progress ── */
+function updateCursor() {
+  spans.forEach((el, i) => {
+    if (i < cursor) {
+      el.className = (el.className.includes('word-space') ? 'word-space ' : '') +
+                     (el.dataset.err ? 'c-err' : 'c-done');
+    } else if (i === cursor) {
+      el.className = (el.className.includes('word-space') ? 'word-space ' : '') + 'c-cursor';
+    } else {
+      el.className = (el.className.includes('word-space') ? 'word-space ' : '') + 'c-pending';
+    }
+  });
+  document.getElementById('prog-fill').style.width = (cursor / chars.length * 100) + '%';
+  if (cursor < chars.length) highlightKey(chars[cursor]);
+}
+
+/* ── Highlight next key ── */
+function highlightKey(ch) {
+  const lower = ch.toLowerCase();
+  const isShift = ch !== lower && /[A-Z!@#$%^&*()_+{}|:"<>?~]/.test(ch);
+  document.querySelectorAll('.key').forEach(k => {
+    k.classList.remove('hl');
+    const kk = k.dataset.key;
+    if (kk && (kk === lower || kk === ch)) k.classList.add('hl');
+    if (isShift && kk === 'Shift') k.classList.add('hl');
+  });
+}
+
+/* ── Flash pressed key ── */
+function flashKey(ch) {
+  document.querySelectorAll('.key').forEach(k => {
+    if (k.dataset.key === ch.toLowerCase() || k.dataset.key === ch) {
+      k.classList.add('pressed');
+      setTimeout(() => k.classList.remove('pressed'), 120);
+    }
+  });
+}
+
+/* ── Timer ── */
+function startTimer() {
+  if (timer) return;
+  timer = setInterval(() => {
+    secs++;
+    const m = Math.floor(secs / 60), s = secs % 60;
+    document.getElementById('time-el').textContent = m + ':' + (s < 10 ? '0' : '') + s;
+    const wpm = Math.round((cursor / 5) / (secs / 60)) || 0;
+    document.getElementById('wpm1').textContent = wpm;
+    document.getElementById('wpm2').textContent = wpm;
+    updateAccLabel();
+  }, 1000);
+}
+
+/* ── Accuracy label ── */
+function updateAccLabel() {
+  const acc = typed > 0 ? Math.max(0, Math.round((1 - errors / typed) * 100)) : 100;
+  document.getElementById('acc-pct').textContent = acc + '%';
+  const lbl = acc >= 95 ? 'Excellent' : acc >= 85 ? 'Good' : acc >= 70 ? 'OK' : 'Keep going';
+  const col = acc >= 95 ? '#4ade80' : acc >= 85 ? '#86efac' : acc >= 70 ? '#fbbf24' : '#f87171';
+  document.getElementById('acc-label').textContent = lbl;
+  document.getElementById('acc-label').style.color  = col;
+}
+
+/* ── Keydown handler ── */
+function handleKey(e) {
+  e.preventDefault();
+  ensureAudio(); // ensure AudioContext is alive on any keypress
+  if (!started) {
+    if (e.key.length === 1 || e.key === 'Backspace') {
+      started = true;
+      document.getElementById('overlay').style.display = 'none';
+      startTimer();
+    } else return;
+  }
+  if (e.key === 'Backspace') {
+    if (cursor > 0) { cursor--; delete spans[cursor].dataset.err; }
+    playClick(false);
+    updateCursor(); return;
+  }
+  if (e.key.length !== 1) return;
+
+  // Ignore modifier-combined single chars (e.g. Ctrl+C fires e.key='c' length 1)
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+  const expected = chars[cursor];
+
+  // If expected char is space, ONLY ' ' (Space key) is correct
+  if (expected === ' ' && e.key !== ' ') {
+    // Wrong key pressed instead of space — mark error but don't advance
+    // Actually advance with error so user must re-try via backspace
+    typed++;
+    errors++;
+    spans[cursor].dataset.err = '1';
+    flashKey(e.key);
+    playClick(true);
+    cursor++;
+    updateCursor();
+    updateAccLabel();
+    return;
+  }
+
+  typed++;
+  if (e.key === expected) {
+    flashKey(expected);
+    playClick(false);
+    cursor++;
+  } else {
+    errors++;
+    spans[cursor].dataset.err = '1';
+    flashKey(e.key);
+    playClick(true);
+    cursor++;
+  }
+
+  if (cursor >= chars.length) {
+    clearInterval(timer);
+    const wpm = Math.round((chars.length / 5) / (secs / 60)) || 0;
+    const acc = Math.max(0, Math.round((1 - errors / typed) * 100));
+    const isLast = chunkIndex >= chunks.length - 1;
+    document.getElementById('done-h').textContent =
+      isLast ? 'Selesai!' : 'Bagian ' + (chunkIndex + 1) + ' selesai!';
+    document.getElementById('done-p').textContent =
+      wpm + ' WPM  ·  ' + acc + '% akurasi  ·  ' +
+      Math.floor(secs/60) + ':' + (secs%60 < 10 ? '0' : '') + secs%60;
+    document.getElementById('done-wrap').classList.add('show');
+  }
+  updateCursor();
+  updateAccLabel();
+  saveProgress(); // simpan posisi ke localStorage
+}
+
+/* ── Reset session (tanpa ganti teks) ── */
+function resetSession(lessonText) {
+  currentLesson = lessonText || currentLesson;
+  cursor=0; errors=0; secs=0; typed=0; started=false;
+  clearInterval(timer); timer=null;
+  ['wpm1','wpm2'].forEach(id => document.getElementById(id).textContent = '0');
+  document.getElementById('acc-pct').textContent = '100%';
+  document.getElementById('time-el').textContent = '0:00';
+  document.getElementById('done-wrap').classList.remove('show');
+  document.getElementById('overlay').style.display = 'flex';
+  buildText();
+  document.getElementById('app').focus();
+}
+
+function reset() {
+  // Reset progress untuk chunk ini ke 0, tapi pertahankan uploadedText
+  const saved = storeLoad();
+  if (saved) storeSave({ chunkIndex, cursorPos: 0 });
+  resetSession(chunks.length > 0 ? chunks[chunkIndex] : DEFAULT_TEXT);
+}
+
+/* ── Events ── */
+function startGame() {
+  ensureAudio();
+  started = true;
+  document.getElementById('overlay').style.display = 'none';
+  startTimer();
+  document.getElementById('app').focus();
+}
+
+document.getElementById('overlay-btn').addEventListener('click', startGame);
+document.getElementById('start-pill').addEventListener('click', startGame);
+document.getElementById('retry-btn').addEventListener('click', reset);
+document.getElementById('app').addEventListener('keydown', handleKey);
+document.getElementById('app').addEventListener('click', () => document.getElementById('app').focus());
+
+document.getElementById('prev-btn').addEventListener('click', () => {
+  if (chunkIndex > 0) loadChunk(chunkIndex - 1);
+});
+document.getElementById('next-btn').addEventListener('click', () => {
+  if (chunkIndex < chunks.length - 1) loadChunk(chunkIndex + 1);
+});
+document.getElementById('next-chunk-done').addEventListener('click', () => {
+  if (chunkIndex < chunks.length - 1) {
+    storeSave({ chunkIndex: chunkIndex + 1, cursorPos: 0 });
+    loadChunk(chunkIndex + 1);
+  }
+});
+
+/* ── Init ── */
+buildKeyboard();
+
+/* Cek localStorage — pulihkan sesi tersimpan jika ada */
+(function initWithStorage() {
+  const saved = storeLoad();
+
+  if (saved && saved.uploadedText) {
+    // Ada file upload tersimpan — muat teks dulu
+    fullText   = sanitizeText(saved.uploadedText);
+    chunks     = splitChunks(fullText);
+    chunkIndex = 0;
+    updateChunkNav();
+
+    const ci  = Math.min(saved.chunkIndex || 0, chunks.length - 1);
+    const pos = saved.cursorPos || 0;
+
+    // Tampilkan nama file
+    if (saved.uploadedFileName) {
+      setFileInfo('💾 ' + escapeHtmlAttr(saved.uploadedFileName) +
+        '  (' + chunks.length + ' bagian) — tersimpan');
+    }
+
+    if (pos > 0 || ci > 0) {
+      // Ada progress tersimpan — tunjukkan banner
+      chunkIndex = ci;
+      currentLesson = chunks[ci];
+      resetSession(chunks[ci]);
+      showResumeBanner(ci, pos);
+    } else {
+      resetSession(chunks[0]);
+    }
+
+  } else if (saved && (saved.chunkIndex > 0 || saved.cursorPos > 0)) {
+    // Default text dengan progress tersimpan
+    chunks = [DEFAULT_TEXT];
+    chunkIndex = 0;
+    resetSession(DEFAULT_TEXT);
+    showResumeBanner(saved.chunkIndex || 0, saved.cursorPos || 0);
+
+  } else {
+    // Tidak ada data tersimpan — mulai normal
+    chunks = [DEFAULT_TEXT];
+    chunkIndex = 0;
+    resetSession(DEFAULT_TEXT);
+  }
+})();
+
+/* ── Keyboard toggle ── */
+let kbVisible = true;
+const kbArea = document.getElementById('kb-area');
+const kbToggle = document.getElementById('kb-toggle');
+kbToggle.addEventListener('click', () => {
+  kbVisible = !kbVisible;
+  if (kbVisible) {
+    kbArea.classList.remove('hidden');
+    kbToggle.classList.remove('kb-off');
+    kbToggle.title = 'Sembunyikan keyboard';
+  } else {
+    kbArea.classList.add('hidden');
+    kbToggle.classList.add('kb-off');
+    kbToggle.title = 'Tampilkan keyboard';
+  }
+  document.getElementById('app').focus();
+});
+</script>
+</body>
+</html>
